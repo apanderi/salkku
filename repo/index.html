@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Salkku</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg"><meta name="theme-color" content="#2457d6">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mu:#6b7280;--bd:#e3e6eb;--ac:#2457d6;--up:#12805c;--dn:#c8321f;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#181c25;--tx:#eef1f6;--mu:#98a1b2;--bd:#262c38;--ac:#7aa2ff;--up:#3ecf9a;--dn:#ff7a68}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:680px;margin:0 auto;padding:12px 16px 40px}a{color:inherit;text-decoration:none}
+nav{display:flex;gap:6px;margin-bottom:14px}nav a{flex:1;text-align:center;padding:9px;border-radius:10px;font-size:14px;border:1px solid var(--bd);background:var(--card)}nav a.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.big{font-size:34px;font-weight:700;letter-spacing:-.5px}.sub{color:var(--mu);font-size:13px}.up{color:var(--up)}.dn{color:var(--dn)}
+.card{display:block;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.r{text-align:right;font-variant-numeric:tabular-nums}.b{font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.chip{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.t{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px 10px}
+input,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:9px}textarea{min-height:110px;font-size:12px}
+label{font-size:12px;color:var(--mu);display:block;margin:8px 0 2px}.btn{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;margin:8px 8px 0 0}
+.warn{border-color:var(--dn)}.tx{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;margin:6px 0;align-items:center}.tx input{padding:7px;font-size:14px;min-width:0}.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.h{font-size:16px;margin:24px 0 4px}.tip{min-height:2.6em;margin-top:4px}
+</style></head><body><main id="app"></main>
+<script>
+const KEY="salkku.v2",$=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const E=new Intl.NumberFormat("fi-FI",{style:"currency",currency:"EUR"}),PC=new Intl.NumberFormat("fi-FI",{style:"percent",minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:"exceptZero"});
+const sg=v=>(v>0?"+":"")+E.format(v),cl=v=>v<0?"dn":"up",num=v=>{v=parseFloat(String(v).replace(/\s/g,"").replace(",","."));return isFinite(v)?v:NaN};
+const today=()=>new Date().toISOString().slice(0,10);const mk=(isin,name,bank)=>({isin,name,bank,units:0,invested:null,p:0,base:today(),tx:[],plan:null});
+let S={h:[mk("FI0008808860","Nordea Kehittyvät Markkinat A","Nordea"),mk("FI4000219522","Nordea Premium Vastuullinen Global Tasapaino","Nordea"),mk("FI0008806823","Nordea Säästö 75 Kasvu","Nordea"),mk("FI4000171251","OP-Eurooppa Pienyhtiöt A","OP"),mk("FI0008804570","OP-Osakesalkku A","OP"),mk("FI0008802376","OP-Rohkea A","OP")],api:"",data:{},at:0,bank:"Kaikki",r:"1v",mode:"eur",on:{TOT:1}};
+try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)))}catch(e){}S.busy=0;S.err="";S.h.forEach(h=>{h.base=h.base||today();h.tx=h.tx||[]});
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const COL=["#2457d6","#12a37f","#e29a14","#c8321f","#7c4dd6","#0d9bb8"];
+const sr=h=>S.data[h.isin]?.s||[],px=h=>{const s=sr(h);return s.length?s.at(-1)[1]:h.p||0},navAt=(h,d)=>sr(h).find(p=>p[0]>=d)?.[1],sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+function occ(h){const p=h.plan;if(!p||!p.amt)return[];const o=[],dd=Math.min(28,Math.max(1,+p.day||1)),end=p.end&&p.end<today()?p.end:today();let[y,m]=(p.start||today()).slice(0,7).split("-").map(Number);
+for(let n=0;n<600;n++,m++){if(m>12){m=1;y++}const d=y+"-"+String(m).padStart(2,"0")+"-"+String(dd).padStart(2,"0");if(d>end)break;if(d>=p.start&&d>h.base)o.push({d,amt:p.amt,auto:1})}return o}
+const bu=(h,b)=>{if(b.u)return{u:b.u,pend:0};const n=navAt(h,b.d);return n?{u:b.amt/n,pend:0}:{u:0,pend:1}};
+const buys=h=>[...(h.tx||[]),...occ(h)].map(b=>({...b,...bu(h,b)})).sort((a,b)=>a.d<b.d?-1:1);
+const units=h=>h.units+sum(buys(h),b=>b.u),inv=h=>h.invested==null?null:h.invested+sum(buys(h),b=>b.pend?0:b.amt);
+function vs(h){const B=buys(h);let c=h.units;const L=[["",c],...B.map(b=>["",c+=b.u]).map((x,i)=>[B[i].d,x[1]])],z=!units(h);let i=0;return sr(h).map(p=>{while(i+1<L.length&&L[i+1][0]<=p[0])i++;return[p[0],p[1]*(z?1:L[i][1])]})}
+const val=h=>units(h)*px(h);
+const R={"1kk":30,"3kk":91,"6kk":182,"1v":365,"3v":1095,"Max":0},RN=["1kk","3kk","6kk","YTD","1v","3v","Max"];
+const from=r=>r==="YTD"?new Date().getFullYear()+"-01-01":R[r]?new Date(Date.now()-R[r]*864e5).toISOString().slice(0,10):"";
+const cut=(s,r)=>{const f=from(r);return f?s.filter(p=>p[0]>=f):s};
+const chg=(s,f)=>{if(s.length<2)return null;const b=s.findLast(p=>p[0]<=f)||s[0];return s.at(-1)[1]/b[1]-1};
+function total(hs){hs=hs.filter(h=>sr(h).length&&units(h));if(!hs.length)return[];const V=hs.map(vs),st=V.map(v=>v[0][0]).sort().pop();
+const ds=[...new Set(V.flatMap(v=>v.map(p=>p[0])))].filter(d=>d>=st).sort(),ix=V.map(()=>0),cu=V.map(()=>0);
+return ds.map(d=>{let t=0;V.forEach((v,k)=>{while(ix[k]<v.length&&v[ix[k]][0]<=d)cu[k]=v[ix[k]++][1];t+=cu[k]});return[d,t]})}
+function chart(lines,el){lines=lines.filter(x=>x.p.length>1);if(!lines.length){el.innerHTML='<p class="sub">Ei kurssidataa. Aseta Worker-osoite asetuksissa ja päivitä kurssit.</p>';return}
+const pct=S.mode==="pct";if(pct)lines=lines.map(x=>({...x,p:x.p.map(q=>[q[0],q[1]/x.p[0][1]-1])}));
+const W=640,H=260,m={l:8,r:8,t:10,b:22},t=d=>new Date(d).getTime(),all=lines.flatMap(x=>x.p),t0=Math.min(...lines.map(x=>t(x.p[0][0]))),t1=Math.max(...lines.map(x=>t(x.p.at(-1)[0])));
+let lo=Math.min(...all.map(q=>q[1])),hi=Math.max(...all.map(q=>q[1]));const pd=(hi-lo)*.08||1;lo-=pd;hi+=pd;
+const X=d=>m.l+(t(d)-t0)/(t1-t0||1)*(W-m.l-m.r),Y=v=>m.t+(1-(v-lo)/(hi-lo))*(H-m.t-m.b),f=v=>pct?PC.format(v):Math.round(v).toLocaleString("fi-FI")+" €";
+let g="";for(let i=0;i<4;i++){const v=lo+(hi-lo)*i/3,y=Y(v);g+=`<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--bd)"/><text x="${m.l}" y="${y-3}" fill="var(--mu)" font-size="10">${f(v)}</text>`}
+const d0=new Date(t0).toLocaleDateString("fi-FI"),d1=new Date(t1).toLocaleDateString("fi-FI");
+g+=`<text x="${m.l}" y="${H-6}" fill="var(--mu)" font-size="10">${d0}</text><text x="${W-m.r}" y="${H-6}" fill="var(--mu)" font-size="10" text-anchor="end">${d1}</text>`;
+g+=lines.map(x=>`<path d="M${x.p.map(q=>X(q[0]).toFixed(1)+","+Y(q[1]).toFixed(1)).join("L")}" fill="none" stroke="${x.c}" stroke-width="2" stroke-linejoin="round"/>`).join("");
+el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="touch-action:pan-y">${g}<line id="cx" y1="${m.t}" y2="${H-m.b}" stroke="var(--mu)" display="none"/></svg><div class="tip sub"></div>`;
+const sv=el.querySelector("svg"),cx=el.querySelector("#cx"),tp=el.querySelector(".tip");
+sv.onpointermove=e=>{const b=sv.getBoundingClientRect(),vx=(e.clientX-b.left)/b.width*W,tm=t0+(vx-m.l)/(W-m.l-m.r)*(t1-t0);let dd="";
+const parts=lines.map(x=>{const q=x.p.findLast(q=>t(q[0])<=tm)||x.p[0];dd=q[0];return`<span style="color:${x.c}">●</span> ${esc(x.l)} ${f(q[1])}`});
+const xx=X(dd);cx.setAttribute("x1",xx);cx.setAttribute("x2",xx);cx.removeAttribute("display");tp.innerHTML=new Date(dd).toLocaleDateString("fi-FI")+"<br>"+parts.join(" · ")};
+sv.onpointerleave=()=>cx.setAttribute("display","none")}
+const ago=()=>S.at?"Kurssit päivitetty "+new Date(S.at).toLocaleString("fi-FI",{dateStyle:"short",timeStyle:"short"}):"Kursseja ei ole vielä haettu. Näytetään viimeisin tunnettu hinta.";
+const status=()=>`<p class="sub">${S.busy?"Päivitetään…":esc(S.err)||ago()}</p>`;
+const rchips=()=>`<div class="chips">${RN.map(r=>`<button class="chip${r===S.r?" on":""}" data-a="r" data-v="${r}">${r}</button>`).join("")}</div>`;
+const nav=p=>`<nav>${[["","Yhteenveto"],["chart","Kuvaaja"],["set","Asetukset"]].map(([h,n])=>`<a href="#${h}" class="${p===h?"on":""}">${n}</a>`).join("")}</nav>`;
+function home(){const bs=["Kaikki",...new Set(S.h.map(h=>h.bank))],hs=S.h.filter(h=>S.bank==="Kaikki"||h.bank===S.bank),v=hs.reduce((s,h)=>s+val(h),0),mp=hs.reduce((s,h)=>s+(h.plan?.amt||0),0),t=total(hs).slice(-2),d=t.length>1?t[1][1]-t[0][1]:null;
+return{p:"",html:`<div class="sub">Salkun arvo</div><div class="big">${E.format(v)}</div>${d!=null?`<div class="b ${cl(d)}">${sg(d)} edellisestä arvopäivästä</div>`:""}${mp?`<div class="sub">Kuukausisijoitus yhteensä ${E.format(mp)} / kk</div>`:""}${status()}
+${S.h.every(h=>!h.units)?'<div class="card warn">Omia määriäsi ei ole vielä tuotu. Avaa Asetukset ja liitä omat-tiedot.json -tiedoston sisältö.</div>':""}
+<div class="chips">${bs.map(b=>`<button class="chip${b===S.bank?" on":""}" data-a="bank" data-v="${esc(b)}">${esc(b)}</button>`).join("")}</div>
+${hs.map(h=>{const s=sr(h),c=chg(s.slice(-2),"0"),iv=inv(h),g=iv?val(h)-iv:null;return`<a class="card" href="#fund/${h.isin}"><div class="row"><div><div class="b">${esc(h.name)}</div><div class="sub">${esc(h.bank)} · ${units(h).toLocaleString("fi-FI",{maximumFractionDigits:4})} kpl · ${px(h).toLocaleString("fi-FI",{maximumFractionDigits:4})} €</div></div><div class="r"><div class="b">${E.format(val(h))}</div><div class="sub ${g!=null?cl(g):""}">${g!=null?sg(g):""}</div></div></div></a>`}).join("")}`}}
+function fund(isin){const h=S.h.find(x=>x.isin===isin);if(!h)return home();const s=sr(h),y=new Date().getFullYear()+"-01-01",iv=inv(h),g=iv?val(h)-iv:null,B=buys(h),P=h.plan||{amt:"",day:1,start:today(),end:""},au=B.filter(b=>b.auto);
+const st=[["1 pv",chg(s.slice(-2),"0")],["1 kk",chg(s,from("1kk"))],["YTD",chg(s,y)],["1 v",chg(s,from("1v"))],["3 v",chg(s,from("3v"))]];
+return{p:"x",html:`<a href="#" class="sub">← Takaisin</a><h2 style="margin:6px 0 0;font-size:20px">${esc(h.name)}</h2><div class="sub">${h.isin}${S.data[h.isin]?" · "+esc(S.data[h.isin].name)+" ("+esc(S.data[h.isin].symbol)+")":""}</div>
+<div class="big">${E.format(val(h))}</div><div class="sub">${px(h).toLocaleString("fi-FI",{maximumFractionDigits:4})} € / kpl${s.length?" · "+new Date(s.at(-1)[0]).toLocaleDateString("fi-FI"):""}</div>${g!=null?`<div class="b ${cl(g)}">Tuotto ${sg(g)} (${PC.format(g/iv)})</div>`:""}${status()}
+<div class="grid">${st.map(([n,c])=>`<div class="t"><div class="sub">${n}</div><div class="b ${c!=null?cl(c):""}">${c!=null?PC.format(c):"–"}</div></div>`).join("")}</div>
+${rchips()}<div id="ch"></div>
+
+<h3 class="h">Kertaostot</h3><p class="sub">Lisää vain ostot, joita ei vielä ole kappalemäärässä. Jos jätät kappalemäärän tyhjäksi, se lasketaan päivän kurssista.</p>
+${(h.tx||[]).length?'<div class="tx sub"><span>Päivä</span><span>Summa €</span><span>Kpl</span><span></span></div>':""}
+${(h.tx||[]).map((b,i)=>{const c=bu(h,b);return`<div class="tx"><input type="date" data-f="txd" data-i="${h.isin}" data-x="${i}" value="${b.d}"><input data-f="txa" data-i="${h.isin}" data-x="${i}" inputmode="decimal" value="${b.amt}"><input data-f="txu" data-i="${h.isin}" data-x="${i}" inputmode="decimal" placeholder="${c.pend?"odottaa kurssia":c.u.toFixed(4)}" value="${b.u??""}"><button class="chip" data-a="deltx" data-i="${h.isin}" data-v="${i}" aria-label="Poista">×</button></div>`}).join("")}
+<div class="tx"><input type="date" id="nd" value="${today()}"><input id="na" inputmode="decimal" placeholder="Summa €"><input id="nu" inputmode="decimal" placeholder="Kpl (valinn.)"><button class="chip" data-a="addtx" data-i="${h.isin}" aria-label="Lisää">+</button></div>
+<h3 class="h">Kuukausisijoitus</h3><div class="g2"><div><label>Summa € / kk</label><input data-f="pamt" data-i="${h.isin}" inputmode="decimal" value="${P.amt||""}"></div><div><label>Päivä (1–28)</label><input data-f="pday" data-i="${h.isin}" inputmode="numeric" value="${P.day}"></div><div><label>Alkaa</label><input type="date" data-f="pstart" data-i="${h.isin}" value="${P.start||""}"></div><div><label>Päättyy (valinnainen)</label><input type="date" data-f="pend" data-i="${h.isin}" value="${P.end||""}"></div></div>
+${au.length?`<p class="sub">Toteutunut ${au.length} kertaa: ${E.format(sum(au.filter(b=>!b.pend),b=>b.amt))}, ${sum(au,b=>b.u).toLocaleString("fi-FI",{maximumFractionDigits:4})} kpl${au.some(b=>b.pend)?" (osa odottaa kurssia)":""}. Osto lasketaan päivän tai sitä seuraavan arvopäivän kurssilla.</p>`:""}
+<h3 class="h">Perustiedot</h3><label>Kappalemäärä (ilman yllä olevia ostoja)</label><input data-f="units" data-i="${h.isin}" inputmode="decimal" value="${h.units}"><label>Kappalemäärä on voimassa päivältä (kuukausisijoitukset lasketaan tämän jälkeen)</label><input type="date" data-f="base" data-i="${h.isin}" value="${h.base}"><label>Sijoitettu summa € (valinnainen, tuoton laskentaan)</label><input data-f="invested" data-i="${h.isin}" inputmode="decimal" value="${h.invested??""}"><p class="sub">Yhteensä nyt ${units(h).toLocaleString("fi-FI",{maximumFractionDigits:4})} kpl.</p>`,
+init(){chart([{l:h.name,c:COL[0],p:cut(s,S.r)}],$("#ch"))}}}
+function charts(){const lines=()=>{const o=[];if(S.on.TOT)o.push({l:"Yhteensä",c:"var(--tx)",p:cut(total(S.h),S.r)});S.h.forEach((h,i)=>{if(S.on[h.isin])o.push({l:h.name,c:COL[i%6],p:cut(vs(h),S.r)})});return o};
+return{p:"chart",html:`${status()}${rchips()}<div class="chips"><button class="chip${S.mode==="eur"?" on":""}" data-a="mode" data-v="eur">Euroa</button><button class="chip${S.mode==="pct"?" on":""}" data-a="mode" data-v="pct">Muutos %</button></div>
+<div id="ch"></div><div class="chips"><button class="chip${S.on.TOT?" on":""}" data-a="tog" data-v="TOT">Yhteensä</button>${S.h.map((h,i)=>`<button class="chip${S.on[h.isin]?" on":""}" data-a="tog" data-v="${h.isin}"><i class="dot" style="background:${COL[i%6]}"></i>${esc(h.name)}</button>`).join("")}</div>
+<p class="sub">Historia lasketaan kappalemäärillä, joihin lisätään syöttämäsi kertaostot ja kuukausisijoitukset niiden päivistä alkaen. Ennen kappalemäärän voimassaolopäivää tehtyjä ostoja ei huomioida.</p>`,init(){chart(lines(),$("#ch"))}}}
+function settings(){return{p:"set",html:`${status()}<button class="btn" data-a="refresh">Päivitä kurssit nyt</button>${S.diag?`<div class="card">${S.h.map(h=>`<div class="sub"><b>${h.isin}</b> ${esc(S.diag[h.isin]||"")}</div>`).join("")}</div>`:""}
+<label>Tuo tai vie omat tiedot (JSON)</label><textarea id="js"></textarea><button class="btn" data-a="imp">Tuo</button><button class="btn" data-a="exp">Vie</button>`}}
+function render(){const r=location.hash.slice(1).split("/"),v=r[0]==="fund"?fund(r[1]):r[0]==="chart"?charts():r[0]==="set"?settings():home();$("#app").innerHTML=nav(v.p)+v.html;v.init&&v.init()}
+async function refresh(){S.busy=1;S.err="";render();
+try{const r=await fetch("prices.json?"+Date.now(),{cache:"no-store"});if(!r.ok)throw Error("prices.json "+r.status);const j=await r.json(),d=j.funds||{};S.diag={};
+for(const h of S.h){const x=d[h.isin];if(x?.ok){S.data[h.isin]={name:x.name,symbol:x.symbol,s:x.s};S.diag[h.isin]=(x.stale?"Vanhentunut (haku epäonnistui: "+x.err+"): ":"OK: ")+x.name+" ("+x.symbol+")"}else S.diag[h.isin]="Puuttuu: "+(x?.err||"ei vastausta")}S.at=Date.parse(j.updated)||S.at}catch(e){S.err="Päivitys epäonnistui: "+e.message}
+S.chk=Date.now();S.busy=0;save();render()}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a,v=b.dataset.v;
+if(a==="r")S.r=v;else if(a==="mode")S.mode=v;else if(a==="bank")S.bank=v;else if(a==="tog")S.on[v]=S.on[v]?0:1;
+else if(a==="addtx"){const h=S.h.find(x=>x.isin===b.dataset.i),m=num($("#na").value);if(!(m>0)){alert("Syötä ostosumma.");return}h.tx.push({d:$("#nd").value||today(),amt:m,u:num($("#nu").value)||null})}else if(a==="deltx"){S.h.find(x=>x.isin===b.dataset.i).tx.splice(+v,1)}else if(a==="refresh")return refresh();else if(a==="exp"){$("#js").value=JSON.stringify(S.h.map(h=>({...h,p:px(h)})),null,1);return}
+else if(a==="imp"){try{const j=JSON.parse($("#js").value);if(!Array.isArray(j))throw 0;S.h=j.map(x=>({isin:String(x.isin),name:String(x.name),bank:String(x.bank||""),units:num(x.units)||0,invested:isNaN(num(x.invested))?null:num(x.invested),p:num(x.p)||0,base:x.base||today(),tx:Array.isArray(x.tx)?x.tx.map(b=>({d:String(b.d),amt:num(b.amt)||0,u:num(b.u)||null})):[],plan:x.plan&&x.plan.amt?x.plan:null}));location.hash="";}catch(_){alert("JSON ei kelvannut.");return}}
+save();render()});
+document.addEventListener("change",e=>{const t=e.target,f=t.dataset.f;if(!f)return;if(f==="api")S.api=t.value.trim();else{const h=S.h.find(x=>x.isin===t.dataset.i),v=num(t.value),x=t.dataset.x;
+if(f==="units")h.units=isNaN(v)?0:v;else if(f==="invested")h.invested=isNaN(v)?null:v;else if(f==="base")h.base=t.value||today();
+else if(f[0]==="p"){const P=h.plan=h.plan||{amt:0,day:1,start:today(),end:null};if(f==="pamt")P.amt=isNaN(v)?0:v;else if(f==="pday")P.day=Math.min(28,Math.max(1,Math.round(v)||1));else if(f==="pstart")P.start=t.value||today();else P.end=t.value||null}
+else{const b=h.tx[x];if(f==="txd")b.d=t.value||b.d;else if(f==="txa")b.amt=isNaN(v)?0:v;else b.u=v>0?v:null}}save();render()});
+addEventListener("hashchange",render);
+const stale=()=>Date.now()-(S.chk||0)>36e5&&refresh();document.addEventListener("visibilitychange",()=>{if(!document.hidden)stale()});
+render();stale();if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script></body></html>
