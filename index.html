@@ -39,13 +39,19 @@ const chg=(s,f)=>{if(s.length<2)return null;const b=s.findLast(p=>p[0]<=f)||s[0]
 function total(hs){hs=hs.filter(h=>sr(h).length&&units(h));if(!hs.length)return[];const V=hs.map(vs),st=V.map(v=>v[0][0]).sort().pop();
 const ds=[...new Set(V.flatMap(v=>v.map(p=>p[0])))].filter(d=>d>=st).sort(),ix=V.map(()=>0),cu=V.map(()=>0);
 return ds.map(d=>{let t=0;V.forEach((v,k)=>{while(ix[k]<v.length&&v[ix[k]][0]<=d)cu[k]=v[ix[k]++][1];t+=cu[k]});return[d,t]})}
+function flows(h){const s=sr(h),m={};buys(h).filter(b=>!b.pend).forEach(b=>{const p=s.find(q=>q[0]>=b.d);if(p)m[p[0]]=(m[p[0]]||0)+b.amt});return m}
+function totF(hs){const F={};hs.forEach(h=>{const m=flows(h);for(const k in m)F[k]=(F[k]||0)+m[k]});return F}
+function perf(V,F,r){const f=from(r);V=f?V.filter(p=>p[0]>=f):V;if(V.length<2)return{g:[],r:[]};
+const g=[[V[0][0],0]],q=[[V[0][0],0]];let c=0,t=1;
+for(let i=1;i<V.length;i++){const fl=F[V[i][0]]||0;c+=V[i][1]-V[i-1][1]-fl;if(V[i-1][1]>0)t*=(V[i][1]-fl)/V[i-1][1];g.push([V[i][0],c]);q.push([V[i][0],t-1])}
+return{g,r:q}}
 function chart(lines,el){lines=lines.filter(x=>x.p.length>1);if(!lines.length){el.innerHTML='<p class="sub">Ei kurssidataa. Aseta Worker-osoite asetuksissa ja päivitä kurssit.</p>';return}
-const pct=S.mode==="pct";if(pct)lines=lines.map(x=>({...x,p:x.p.map(q=>[q[0],q[1]/x.p[0][1]-1])}));
+const pct=S.mode==="pct";
 const W=640,H=260,m={l:8,r:8,t:10,b:22},t=d=>new Date(d).getTime(),all=lines.flatMap(x=>x.p),t0=Math.min(...lines.map(x=>t(x.p[0][0]))),t1=Math.max(...lines.map(x=>t(x.p.at(-1)[0])));
 let lo=Math.min(...all.map(q=>q[1])),hi=Math.max(...all.map(q=>q[1]));const pd=(hi-lo)*.08||1;lo-=pd;hi+=pd;
 const X=d=>m.l+(t(d)-t0)/(t1-t0||1)*(W-m.l-m.r),Y=v=>m.t+(1-(v-lo)/(hi-lo))*(H-m.t-m.b),f=v=>pct?PC.format(v):Math.round(v).toLocaleString("fi-FI")+" €";
 let g="";for(let i=0;i<4;i++){const v=lo+(hi-lo)*i/3,y=Y(v);g+=`<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--bd)"/><text x="${m.l}" y="${y-3}" fill="var(--mu)" font-size="10">${f(v)}</text>`}
-const d0=new Date(t0).toLocaleDateString("fi-FI"),d1=new Date(t1).toLocaleDateString("fi-FI");
+g+=`<line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--mu)" stroke-width="1.5"/><text x="${W-m.r}" y="${Y(0)-3}" fill="var(--mu)" font-size="10" text-anchor="end">${f(0)}</text>`;const d0=new Date(t0).toLocaleDateString("fi-FI"),d1=new Date(t1).toLocaleDateString("fi-FI");
 g+=`<text x="${m.l}" y="${H-6}" fill="var(--mu)" font-size="10">${d0}</text><text x="${W-m.r}" y="${H-6}" fill="var(--mu)" font-size="10" text-anchor="end">${d1}</text>`;
 g+=lines.map(x=>`<path d="M${x.p.map(q=>X(q[0]).toFixed(1)+","+Y(q[1]).toFixed(1)).join("L")}" fill="none" stroke="${x.c}" stroke-width="2" stroke-linejoin="round"/>`).join("");
 el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="touch-action:pan-y">${g}<line id="cx" y1="${m.t}" y2="${H-m.b}" stroke="var(--mu)" display="none"/></svg><div class="tip sub"></div>`;
@@ -57,6 +63,7 @@ sv.onpointerleave=()=>cx.setAttribute("display","none")}
 const ago=()=>S.at?"Kurssit päivitetty "+new Date(S.at).toLocaleString("fi-FI",{dateStyle:"short",timeStyle:"short"}):"Kursseja ei ole vielä haettu. Näytetään viimeisin tunnettu hinta.";
 const status=()=>`<p class="sub">${S.busy?"Päivitetään…":esc(S.err)||ago()}</p>`;
 const rchips=()=>`<div class="chips">${RN.map(r=>`<button class="chip${r===S.r?" on":""}" data-a="r" data-v="${r}">${r}</button>`).join("")}</div>`;
+const mchips=()=>`<div class="chips"><button class="chip${S.mode==="eur"?" on":""}" data-a="mode" data-v="eur">Tuotto €</button><button class="chip${S.mode==="pct"?" on":""}" data-a="mode" data-v="pct">Tuotto %</button></div>`;
 const nav=p=>`<nav>${[["","Yhteenveto"],["chart","Kuvaaja"],["set","Asetukset"]].map(([h,n])=>`<a href="#${h}" class="${p===h?"on":""}">${n}</a>`).join("")}</nav>`;
 function home(){const bs=["Kaikki",...new Set(S.h.map(h=>h.bank))],hs=S.h.filter(h=>S.bank==="Kaikki"||h.bank===S.bank),v=hs.reduce((s,h)=>s+val(h),0),mp=hs.reduce((s,h)=>s+(h.plan?.amt||0),0),t=total(hs).slice(-2),d=t.length>1?t[1][1]-t[0][1]:null;
 return{p:"",html:`<div class="sub">Salkun arvo</div><div class="big">${E.format(v)}</div>${d!=null?`<div class="b ${cl(d)}">${sg(d)} edellisestä arvopäivästä</div>`:""}${mp?`<div class="sub">Kuukausisijoitus yhteensä ${E.format(mp)} / kk</div>`:""}${status()}
@@ -68,7 +75,7 @@ const st=[["1 pv",chg(s.slice(-2),"0")],["1 kk",chg(s,from("1kk"))],["YTD",chg(s
 return{p:"x",html:`<a href="#" class="sub">← Takaisin</a><h2 style="margin:6px 0 0;font-size:20px">${esc(h.name)}</h2><div class="sub">${h.isin}${S.data[h.isin]?" · "+esc(S.data[h.isin].name)+" ("+esc(S.data[h.isin].symbol)+")":""}</div>
 <div class="big">${E.format(val(h))}</div><div class="sub">${px(h).toLocaleString("fi-FI",{maximumFractionDigits:4})} € / kpl${s.length?" · "+new Date(s.at(-1)[0]).toLocaleDateString("fi-FI"):""}</div>${g!=null?`<div class="b ${cl(g)}">Tuotto ${sg(g)} (${PC.format(g/iv)})</div>`:""}${status()}
 <div class="grid">${st.map(([n,c])=>`<div class="t"><div class="sub">${n}</div><div class="b ${c!=null?cl(c):""}">${c!=null?PC.format(c):"–"}</div></div>`).join("")}</div>
-${rchips()}<div id="ch"></div>
+${rchips()}${mchips()}<div id="ch"></div>
 
 <h3 class="h">Kertaostot</h3><p class="sub">Lisää vain ostot, joita ei vielä ole kappalemäärässä. Jos jätät kappalemäärän tyhjäksi, se lasketaan päivän kurssista.</p>
 ${(h.tx||[]).length?'<div class="tx sub"><span>Päivä</span><span>Summa €</span><span>Kpl</span><span></span></div>':""}
@@ -80,11 +87,11 @@ ${au.length?`<p class="sub">Toteutunut ${au.length} kertaa: ${E.format(sum(au.fi
 <h3 class="h">Hankintahinta päivän kurssilla</h3><p class="sub">Laskee kappalemäärä × kurssi valittuna päivänä (esim. kuolinpäivä) kurssihistorian perusteella. Jos päivälle ei ole kurssia (viikonloppu), käytetään edellistä arvopäivää. Kappalemäärän voi syöttää erikseen (esim. perukirjan osuudet). Tyhjänä käytetään perustietojen kappalemäärää.</p>
 <div class="tx" style="grid-template-columns:1fr 1fr auto"><input type="date" id="hd" value="${S.hres&&S.hres.isin===h.isin?S.hres.d:""}"><input id="hu" inputmode="decimal" placeholder="Kpl (valinn.)" value="${S.hres&&S.hres.isin===h.isin&&S.hres.u?S.hres.u:""}"><button class="chip" data-a="hcalc" data-i="${h.isin}">Laske</button></div>
 ${S.hres&&S.hres.isin===h.isin?(S.hres.err?`<p class="sub dn">${esc(S.hres.err)}</p>`:`<div class="card"><div class="sub">Kurssi ${new Date(S.hres.date).toLocaleDateString("fi-FI")}: ${S.hres.nav.toLocaleString("fi-FI",{maximumFractionDigits:4})} € × ${S.hres.u.toLocaleString("fi-FI",{maximumFractionDigits:4})} kpl</div><div class="b">${E.format(S.hres.cost)}</div><button class="btn" data-a="hset" data-i="${h.isin}">Aseta sijoitetuksi summaksi</button></div>`):""}`,
-init(){chart([{l:h.name,c:COL[0],p:cut(s,S.r)}],$("#ch"))}}}
-function charts(){const lines=()=>{const o=[];if(S.on.TOT)o.push({l:"Yhteensä",c:"var(--tx)",p:cut(total(S.h),S.r)});S.h.forEach((h,i)=>{if(S.on[h.isin])o.push({l:h.name,c:COL[i%6],p:cut(vs(h),S.r)})});return o};
-return{p:"chart",html:`${status()}${rchips()}<div class="chips"><button class="chip${S.mode==="eur"?" on":""}" data-a="mode" data-v="eur">Euroa</button><button class="chip${S.mode==="pct"?" on":""}" data-a="mode" data-v="pct">Muutos %</button></div>
+init(){chart([{l:h.name,c:COL[0],p:perf(vs(h),flows(h),S.r)[S.mode==="pct"?"r":"g"]}],$("#ch"))}}}
+function charts(){const lines=()=>{const o=[],k=S.mode==="pct"?"r":"g";if(S.on.TOT)o.push({l:"Yhteensä",c:"var(--tx)",p:perf(total(S.h),totF(S.h),S.r)[k]});S.h.forEach((h,i)=>{if(S.on[h.isin])o.push({l:h.name,c:COL[i%6],p:perf(vs(h),flows(h),S.r)[k]})});return o};
+return{p:"chart",html:`${status()}${rchips()}${mchips()}
 <div id="ch"></div><div class="chips"><button class="chip${S.on.TOT?" on":""}" data-a="tog" data-v="TOT">Yhteensä</button>${S.h.map((h,i)=>`<button class="chip${S.on[h.isin]?" on":""}" data-a="tog" data-v="${h.isin}"><i class="dot" style="background:${COL[i%6]}"></i>${esc(h.name)}</button>`).join("")}</div>
-<p class="sub">Historia lasketaan kappalemäärillä, joihin lisätään syöttämäsi kertaostot ja kuukausisijoitukset niiden päivistä alkaen. Ennen kappalemäärän voimassaolopäivää tehtyjä ostoja ei huomioida.</p>`,init(){chart(lines(),$("#ch"))}}}
+<p class="sub">Kuvaaja näyttää tuoton valitun jakson alusta (alku = 0). Kertaostot ja kuukausisijoitukset on poistettu laskennasta, joten pääoman lisäys ei näy tuottona. Rahastojen kurssit sisältävät jo rahastotason vuosikulut.</p>`,init(){chart(lines(),$("#ch"))}}}
 function settings(){return{p:"set",html:`${status()}<button class="btn" data-a="refresh">Päivitä kurssit nyt</button>${S.diag?`<div class="card">${S.h.map(h=>`<div class="sub"><b>${h.isin}</b> ${esc(S.diag[h.isin]||"")}</div>`).join("")}</div>`:""}
 <label>Tuo tai vie omat tiedot (JSON)</label><textarea id="js"></textarea><button class="btn" data-a="imp">Tuo</button><button class="btn" data-a="exp">Vie</button>`}}
 function render(){const r=location.hash.slice(1).split("/"),v=r[0]==="fund"?fund(r[1]):r[0]==="chart"?charts():r[0]==="set"?settings():home();$("#app").innerHTML=nav(v.p)+v.html;v.init&&v.init()}
